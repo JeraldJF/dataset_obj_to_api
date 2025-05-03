@@ -6,25 +6,50 @@ import uuid
 from app.schemas.dataset import DatasetResponse, DatasetCreate, DatasetMetrics
 from app.services.dataset_service import DatasetService
 
-dataset_router = APIRouter()
+dataset_router = APIRouter(
+    prefix="",  # Remove prefix as it's handled in main.py
+    tags=["datasets"]
+)
+
 dataset_service = DatasetService()
 
 @dataset_router.get("/datasets/list", response_model=List[DatasetResponse])
 async def list_datasets():
     try:
+        payload = {
+            "id": "api.datasets.list",
+            "ver": "v2",
+            "ts": datetime.utcnow().isoformat(),
+            "params": {
+                "msgid": str(uuid.uuid4())
+            },
+            "request": {
+                "filters": {
+                    "status": "Live"
+                }
+            }
+        }
+        
         async with httpx.AsyncClient() as client:
-            datasets_response = await client.get(f'{dataset_service.base_url}/datasets/list')
+            datasets_response = await client.post(
+                f'http://localhost:3005/v2/datasets/list',
+                json=payload
+            )
+            print("Datasets list response:", datasets_response.json() if datasets_response.status_code == 200 else datasets_response.text)
             if datasets_response.status_code != 200:
                 raise HTTPException(
                     status_code=datasets_response.status_code,
                     detail="Failed to fetch datasets list"
                 )
 
-            datasets = datasets_response.json().get('result', [])
+            datasets = datasets_response.json().get('result', {}).get('data', [])
             enriched_datasets = []
             time_intervals = dataset_service.get_time_intervals()
 
             for dataset in datasets:
+                if not isinstance(dataset, dict):
+                    continue
+                    
                 dataset_id = dataset.get('dataset_id')
                 if not dataset_id:
                     continue
@@ -114,10 +139,11 @@ async def create_dataset(dataset: DatasetCreate):
 
         async with httpx.AsyncClient() as client:
             schema_response = await client.post(
-                f'{dataset_service.base_url}/datasets/dataschema',
+                f'{dataset_service.base_url}/v2/datasets/dataschema',
                 json=schema_payload
             )
             
+            print("Schema response:", schema_response.json() if schema_response.status_code == 200 else schema_response.text)
             if schema_response.status_code != 200:
                 raise HTTPException(
                     status_code=schema_response.status_code,
@@ -207,10 +233,10 @@ async def create_dataset(dataset: DatasetCreate):
             }
 
             create_response = await client.post(
-                f'{dataset_service.base_url}/datasets/create',
+                f'{dataset_service.base_url}/v2/datasets/create',
                 json=dataset_payload
             )
-
+            print("Dataset create response:", create_response.json() if create_response.status_code == 200 else create_response.text)
             return {
                 'schema_response': schema_response.json(),
                 'create_response': create_response.json()

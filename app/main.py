@@ -24,8 +24,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(dataset_router, prefix=settings.API_V1_STR)
+# Include routers without prefix
+app.include_router(dataset_router)
 
 # Global exception handler
 @app.exception_handler(Exception)
@@ -39,8 +39,8 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "app.main:app", 
-        host="0.0.0.0", 
-        port=3000, 
+        host="localhost", 
+        port=8000, 
         reload=True,
         log_level="info"
     )

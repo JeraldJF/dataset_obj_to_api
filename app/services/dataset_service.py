@@ -38,33 +38,58 @@ class DatasetService:
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.base_url}/data/metrics?id=failedEventsCountPerDataset",
+                f"http://localhost:3005/v2/data/metrics?id=failedEventsCountPerDataset",
                 json=payload
             )
             if response.status_code == 200:
-                return response.json().get('result', {}).get('data', 0)
+                result = response.json()
+                if result.get('status') == 'success' and isinstance(result.get('data', {}).get('result'), list):
+                    # Extract value from the first result if available
+                    results = result['data']['result']
+                    if results and len(results) > 0 and 'value' in results[0]:
+                        try:
+                            return int(float(results[0]['value'][1]))
+                        except (IndexError, ValueError):
+                            pass
+                return 0
             return 0
 
     async def get_events_count(self, dataset_id: str, start_time: datetime, end_time: datetime) -> int:
         payload = self._build_events_count_payload(dataset_id, start_time, end_time)
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.base_url}/data/metrics?id=totalProcessedEventsCount",
+                f"http://localhost:3005/v2/data/metrics?id=totalProcessedEventsCount",
                 json=payload
             )
             if response.status_code == 200:
-                return response.json().get('result', {}).get('data', 0)
+                result = response.json()
+                if result.get('status') == 'success' and isinstance(result.get('data', {}).get('result'), list):
+                    results = result['data']['result']
+                    if results and len(results) > 0 and 'value' in results[0]:
+                        try:
+                            return int(float(results[0]['value'][1]))
+                        except (IndexError, ValueError):
+                            pass
+                return 0
             return 0
 
     async def get_last_synced_time(self, dataset_id: str) -> int:
         payload = self._build_last_synced_time_payload(dataset_id)
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.base_url}/data/metrics?id=lastSyncedTime",
+                f"http://localhost:3005/v2/data/metrics?id=lastSyncedTime",
                 json=payload
             )
             if response.status_code == 200:
-                return response.json().get('result', {}).get('data', 0)
+                result = response.json()
+                if result.get('status') == 'success' and isinstance(result.get('data', {}).get('result'), list):
+                    results = result['data']['result']
+                    if results and len(results) > 0 and 'value' in results[0]:
+                        try:
+                            return int(float(results[0]['value'][1]))
+                        except (IndexError, ValueError):
+                            pass
+                return 0
             return 0
 
     async def get_dataset_health(self, dataset_id: str) -> str:
@@ -81,11 +106,15 @@ class DatasetService:
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.base_url}/datasets/health",
+                f"http://localhost:3005/v2/datasets/health",
                 json=payload
             )
             if response.status_code == 200:
-                return response.json().get('result', {}).get('status', 'Unknown')
+                result = response.json()
+                print(result)
+                if isinstance(result, dict):
+                    return result.get('result', {}).get('status', 'Unknown')
+                return str(result) if result else 'Unknown'
             return 'Unknown'
 
     def _build_events_count_payload(self, dataset_id: str, start_time: datetime, end_time: datetime) -> Dict:
