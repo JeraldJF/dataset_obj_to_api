@@ -17,7 +17,7 @@ class DatasetMetrics(BaseModel):
 class DatasetResponse(BaseModel):
     dataset: str
     status: str
-    last_synced_time: int = 0
+    last_synced_time: datetime | None = None
     metrics: DatasetMetrics
 
 class TransformationField(BaseModel):

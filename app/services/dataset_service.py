@@ -12,6 +12,7 @@ class DatasetService:
         self.base_url = settings.BACKEND_URL
 
     async def get_failed_events_count(self, dataset_id: str, start_time: datetime, end_time: datetime) -> int:
+        updated_dataset_id = dataset_id.replace("-", "_")
         payload = {
             "query": {
                 "type": "api",
@@ -20,12 +21,12 @@ class DatasetService:
                 "method": "GET",
                 "params": {
                     "query": (
-                        f"sum(sum_over_time(flink_taskmanager_job_task_operator_PipelinePreprocessorJob_{dataset_id}_dedup_failed_count[{int(end_time.timestamp() - start_time.timestamp())}s])) + "
-                        f"sum(sum_over_time(flink_taskmanager_job_task_operator_PipelinePreprocessorJob_{dataset_id}_validator_failed_count[{int(end_time.timestamp() - start_time.timestamp())}s])) + "
-                        f"sum(sum_over_time(flink_taskmanager_job_task_operator_ExtractorJob_{dataset_id}_extractor_failed_count[{int(end_time.timestamp() - start_time.timestamp())}s])) + "
-                        f"sum(sum_over_time(flink_taskmanager_job_task_operator_ExtractorJob_{dataset_id}_extractor_duplicate_count[{int(end_time.timestamp() - start_time.timestamp())}s])) + "
-                        f"sum(sum_over_time(flink_taskmanager_job_task_operator_TransformerJob_{dataset_id}_transform_failed_count[{int(end_time.timestamp() - start_time.timestamp())}s])) + "
-                        f"sum(sum_over_time(flink_taskmanager_job_task_operator_DruidRouterJob_{dataset_id}_failed_event_count[{int(end_time.timestamp() - start_time.timestamp())}s]))"
+                        f"sum(sum_over_time(flink_taskmanager_job_task_operator_PipelinePreprocessorJob_{updated_dataset_id}_dedup_failed_count[{int(end_time.timestamp() - start_time.timestamp())}s])) + "
+                        f"sum(sum_over_time(flink_taskmanager_job_task_operator_PipelinePreprocessorJob_{updated_dataset_id}_validator_failed_count[{int(end_time.timestamp() - start_time.timestamp())}s])) + "
+                        f"sum(sum_over_time(flink_taskmanager_job_task_operator_ExtractorJob_{updated_dataset_id}_extractor_failed_count[{int(end_time.timestamp() - start_time.timestamp())}s])) + "
+                        f"sum(sum_over_time(flink_taskmanager_job_task_operator_ExtractorJob_{updated_dataset_id}_extractor_duplicate_count[{int(end_time.timestamp() - start_time.timestamp())}s])) + "
+                        f"sum(sum_over_time(flink_taskmanager_job_task_operator_TransformerJob_{updated_dataset_id}_transform_failed_count[{int(end_time.timestamp() - start_time.timestamp())}s])) + "
+                        f"sum(sum_over_time(flink_taskmanager_job_task_operator_DruidRouterJob_{updated_dataset_id}_failed_event_count[{int(end_time.timestamp() - start_time.timestamp())}s]))"
                     ),
                     "time": int(end_time.timestamp())
                 },
@@ -41,10 +42,10 @@ class DatasetService:
                 f"http://localhost:3005/v2/data/metrics?id=failedEventsCountPerDataset",
                 json=payload
             )
+            print("get_failed_events_count response:", response.json())  # Print statement added
             if response.status_code == 200:
                 result = response.json()
                 if result.get('status') == 'success' and isinstance(result.get('data', {}).get('result'), list):
-                    # Extract value from the first result if available
                     results = result['data']['result']
                     if results and len(results) > 0 and 'value' in results[0]:
                         try:
@@ -61,13 +62,15 @@ class DatasetService:
                 f"http://localhost:3005/v2/data/metrics?id=totalProcessedEventsCount",
                 json=payload
             )
+            print("get_events_count response:", response.json())  # Print statement added
             if response.status_code == 200:
                 result = response.json()
-                if result.get('status') == 'success' and isinstance(result.get('data', {}).get('result'), list):
-                    results = result['data']['result']
-                    if results and len(results) > 0 and 'value' in results[0]:
+                if result.get('result'):
+                    results = result['result']
+                    if results and len(results) > 0 and 'result' in results[0]:
                         try:
-                            return int(float(results[0]['value'][1]))
+                            count = results[0]['result']['count']
+                            return count if isinstance(count, (int, float)) else 0
                         except (IndexError, ValueError):
                             pass
                 return 0
@@ -80,14 +83,15 @@ class DatasetService:
                 f"http://localhost:3005/v2/data/metrics?id=lastSyncedTime",
                 json=payload
             )
+            print("get_last_synced_time response:", response.json())  # Print statement added
             if response.status_code == 200:
                 result = response.json()
-                if result.get('status') == 'success' and isinstance(result.get('data', {}).get('result'), list):
-                    results = result['data']['result']
-                    if results and len(results) > 0 and 'value' in results[0]:
+                if result:
+                    if result:
                         try:
-                            return int(float(results[0]['value'][1]))
-                        except (IndexError, ValueError):
+                            return result["result"][0]['event']['last_synced_time']
+                        except Exception as e:
+                            print("Error parsing last synced time:", e)
                             pass
                 return 0
             return 0
@@ -109,6 +113,7 @@ class DatasetService:
                 f"http://localhost:3005/v2/datasets/health",
                 json=payload
             )
+            print("get_dataset_health response:", response.json())  # Print statement added
             if response.status_code == 200:
                 result = response.json()
                 print(result)

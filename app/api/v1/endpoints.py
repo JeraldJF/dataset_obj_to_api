@@ -1,5 +1,7 @@
-from fastapi import APIRouter, HTTPException
-from typing import List
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
+from typing import List, Optional
+import json
 import httpx
 from datetime import datetime
 import uuid
@@ -113,13 +115,31 @@ async def list_datasets():
             detail=str(e)
         )
 
+class PIIField(BaseModel):
+    field: str
+    treatment: str
+
+class DatasetCreateRequest(BaseModel):
+    dataset_purpose: str
+    sample_event: str
+    data_location: str
+    dataset_name: str
+    pii_fields: List[PIIField]
+    dedup_key: str
+    timestamp_key: str
+    storage_option: str
+
 @dataset_router.post("/datasets/create")
-async def create_dataset(dataset: DatasetCreate):
+async def create_dataset(request: DatasetCreateRequest):
     try:
-        context = dataset.context
-        sample_event = dataset.sample_event or {}
-        dataset_name = context.dataset_name
-        data_location = context.data_location
+        # Parse the stringified sample event
+        try:
+            sample_event_json = json.loads(request.sample_event)
+        except json.JSONDecodeError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid JSON format in sample_event"
+            )
 
         # Step 1: Get schema
         schema_payload = {
@@ -130,9 +150,9 @@ async def create_dataset(dataset: DatasetCreate):
                 "msgid": str(uuid.uuid4())
             },
             "request": {
-                "data": [sample_event] if sample_event else [],
+                "data": [sample_event_json] if sample_event_json else [],
                 "config": {
-                    "dataset": dataset_name
+                    "dataset": request.dataset_name
                 }
             }
         }
@@ -160,33 +180,20 @@ async def create_dataset(dataset: DatasetCreate):
                     "additionalProperties": True
                 }
 
-            formatted_dataset_id = dataset_service.format_dataset_id(dataset_name)
-            dataset_type = dataset_service.validate_type(context.dataset_purpose)
+            formatted_dataset_id = dataset_service.format_dataset_id(request.dataset_name)
+            dataset_type = dataset_service.validate_type(request.dataset_purpose)
             
             transformations = []
-            for field in context.pii_fields:
-                if isinstance(field, dict) and 'field' in field:
-                    transformations.append({
-                        "field_key": field['field'],
-                        "transformation_function": {
-                            "type": "mask",
-                            "expr": field.get('field', ''),
-                            "category": "pii"
-                        },
-                        "mode": "Strict"
-                    })
-
-            for field in context.transformation_fields:
-                if isinstance(field, dict) and 'field' in field:
-                    transformations.append({
-                        "field_key": field['field'],
-                        "transformation_function": {
-                            "type": "transform",
-                            "expr": field.get('expr', ''),
-                            "category": "transformation"
-                        },
-                        "mode": "Strict"
-                    })
+            for field in request.pii_fields:
+                transformations.append({
+                    "field_key": field.field,
+                    "transformation_function": {
+                        "type": "mask" if field.treatment == 'mask' else 'encrypt',
+                        "expr": field.field,
+                        "category": "pii"
+                    },
+                    "mode": "Strict"
+                })
 
             # Create dataset payload
             dataset_payload = {
@@ -199,7 +206,7 @@ async def create_dataset(dataset: DatasetCreate):
                 "request": {
                     "dataset_id": formatted_dataset_id,
                     "type": dataset_type,
-                    "name": dataset_name,
+                    "name": request.dataset_name,
                     "validation_config": {
                         "validate": True,
                         "mode": "Strict"
@@ -209,26 +216,26 @@ async def create_dataset(dataset: DatasetCreate):
                         "extraction_key": "events",
                         "dedup_config": {
                             "drop_duplicates": True,
-                            "dedup_key": context.dedup_key
+                            "dedup_key": request.dedup_key
                         }
                     },
                     "dedup_config": {
                         "drop_duplicates": True,
-                        "dedup_key": context.dedup_key
+                        "dedup_key": request.dedup_key
                     },
                     "data_schema": schema_result,
                     "dataset_config": {
                         "indexing_config": {
-                            "olap_store_enabled": context.storage_option.lower() == 'druid' if context.storage_option else False,
-                            "lakehouse_enabled": context.storage_option.lower() == 'lakehouse' if context.storage_option else False,
+                            "olap_store_enabled": request.storage_option.lower() == 'druid',
+                            "lakehouse_enabled": request.storage_option.lower() == 'hudi',
                             "cache_enabled": False
                         },
                         "keys_config": {
-                            "timestamp_key": context.timestamp_key
+                            "timestamp_key": request.timestamp_key
                         }
                     },
                     "transformations_config": transformations,
-                    "connectors_config": dataset_service.get_connector_config(data_location, dataset_name)
+                    "connectors_config": dataset_service.get_connector_config(request.data_location, request.dataset_name)
                 }
             }
 
