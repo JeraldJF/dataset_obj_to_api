@@ -39,7 +39,7 @@ class DatasetService:
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"http://localhost:3005/v2/data/metrics?id=failedEventsCountPerDataset",
+                f'{self.base_url}/v2/data/metrics?id=failedEventsCountPerDataset',
                 json=payload
             )
             print("get_failed_events_count response:", response.json())  # Print statement added
@@ -59,7 +59,7 @@ class DatasetService:
         payload = self._build_events_count_payload(dataset_id, start_time, end_time)
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"http://localhost:3005/v2/data/metrics?id=totalProcessedEventsCount",
+                f'{self.base_url}/v2/data/metrics?id=totalProcessedEventsCount',
                 json=payload
             )
             print("get_events_count response:", response.json())  # Print statement added
@@ -80,7 +80,7 @@ class DatasetService:
         payload = self._build_last_synced_time_payload(dataset_id)
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"http://localhost:3005/v2/data/metrics?id=lastSyncedTime",
+                f'{self.base_url}/v2/data/metrics?id=lastSyncedTime',
                 json=payload
             )
             print("get_last_synced_time response:", response.json())  # Print statement added
@@ -110,7 +110,7 @@ class DatasetService:
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"http://localhost:3005/v2/datasets/health",
+                f'{self.base_url}/v2/datasets/health',
                 json=payload
             )
             print("get_dataset_health response:", response.json())  # Print statement added

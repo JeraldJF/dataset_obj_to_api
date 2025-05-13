@@ -34,7 +34,7 @@ async def list_datasets():
         
         async with httpx.AsyncClient() as client:
             datasets_response = await client.post(
-                f'http://localhost:3005/v2/datasets/list',
+                f'{dataset_service.base_url}/v2/datasets/list',
                 json=payload
             )
             print("Datasets list response:", datasets_response.json() if datasets_response.status_code == 200 else datasets_response.text)
