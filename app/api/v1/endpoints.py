@@ -226,7 +226,7 @@ async def create_dataset(request: DatasetCreateRequest):
                     "data_schema": schema_result,
                     "dataset_config": {
                         "indexing_config": {
-                            "olap_store_enabled": request.storage_option.lower() == 'druid',
+                            "olap_store_enabled": request.storage_option.lower() == 'apache druid',
                             "lakehouse_enabled": request.storage_option.lower() == 'hudi',
                             "cache_enabled": False
                         },
